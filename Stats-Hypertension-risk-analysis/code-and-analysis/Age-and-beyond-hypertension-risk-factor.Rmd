@@ -1,0 +1,419 @@
+---
+title: "Age and Beyond: Investigating Hypertension Risk Factors"
+author: "Carol Sanchez Garibay, Irene Na, Francesca Scipioni"
+date: "April 2024"
+
+header-includes:
+  - \usepackage{titling}
+keywords:
+  - blood preasure
+  - linear regression
+
+output:
+  pdf_document: default
+  pdf_document word_document html_document: default
+  word_document: default
+classoption: portrait
+fontsize: 10pt
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(wooldridge)
+library(car)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(ggplot2)
+library(patchwork)
+library(vtable)
+
+theme_set(theme_bw())
+
+options(tinytex.verbose = TRUE)
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning = FALSE,  fig.pos = "H")
+```
+
+\newpage 
+
+
+## Introduction
+Hypertension occurs when blood pressure consistently exceeds normal levels, typically measured through systolic (during heartbeats) and diastolic (between beats) readings. Diagnosis occurs if systolic readings exceed 140 mmHg or diastolic readings exceed 90 mmHg on multiple occasions. Recent research suggests systolic pressure is a stronger indicator, especially for older adults\footnote{Thor Christensen, American Heart Association News. (2021)."Which blood pressure number matters most? The answer might depend on your age."}. Hypertension, associated with serious health complications like heart disease, stroke, and kidney failure, affects an estimated 1.28 billion adults aged 30–79 worldwide\footnote{World Health Organization. (2023). "Hypertension."}. Highlighted in American Heart Association reports, recent medical research underscores systolic blood pressure's pivotal role in hypertension diagnosis, and its connection to age\footnote{American Heart Association. (2023). "Know Your Risk Factors for High Blood Pressure"}. Pinto (2007)\footnote{Pinto E. Blood pressure and aging. Postgrad Med J. 2007 Feb;83(976):109-14. doi: 10.1136/pgmj.2006.048371. PMID: 17308214; PMCID: PMC2805932.} attributes age-related blood pressure increases to arterial changes and stiffness. The Centers for Disease Control and Prevention (CDC) estimates from 2015-2016 reveal hypertension prevalence rises with age: 7.5% among adults aged 18–39, 33.2% among those aged 40–59, and 63.1% among those aged 60 and over\footnote{Fryar C.D. et al. NCHS Data Brief No. 289, October 2017.}. Based on these researches, age's connection with blood pressure dynamics is significant, yet hypertension's complexity also extends to factors including genetics, race, overweight/obesity, sedentary lifestyle, salt consumption, and alcohol and tobacco use$^{3}$. Our research aims to delve deeply into the relationship between age and systolic blood pressure (SBP), while acknowledging the multifactorial nature of hypertension. Our work will center around the following research question:
+
+```{=tex}
+\begin{quote}
+  \textbf{How does age relate to systolic blood pressure, and to what extent does this relationship change when considering additional risk factors?}
+\end{quote}
+```
+Leveraging CDC survey data and contextualizing our analysis within hypertension risk factors, we aim to provide comprehensive insights into blood pressure patterns across diverse populations, informing management strategies that promote public health and reduce cardiovascular disease burden.
+
+```{r expand processed data to include needed features, partition data}
+# # getwd()
+# cdc_data_original <- read.csv('../data/interim/NHANES_2017-2018_ORIGINAL.csv')
+# cdc_data_partial <- read.csv('../data/processed/NHANES_Lab2_DATASCI-203-original.csv')
+# cdc_data_selected = cdc_data_original%>%
+#   select(c(colnames(cdc_data_partial%>%select(2:18)), 'General.health.condition', 'Alcohol.drinks.day',
+#            'Race', 'Num.cigs.day','Gender'))
+# 
+# row_dropped = nrow(cdc_data_selected) - nrow(cdc_data_selected%>%
+#                              filter((Systolic.BP..mm.Hg.!=0)
+#                               &(Diastolic.BP..mm.Hg.!=0)
+#                               &(Hours.day.sedentary.activity<=24)))
+# # row_dropped_record = 4779-4539 =240
+# cdc_data_selected = cdc_data_selected%>%
+#                              filter((Systolic.BP..mm.Hg.!=0)
+#                               &(Diastolic.BP..mm.Hg.!=0)
+#                               &(Hours.day.sedentary.activity<=24))
+# 
+# ind <- sample(c(TRUE, FALSE), nrow(cdc_data_selected),
+#              replace=TRUE, prob = c(0.3, 0.7))
+# cdc_data_expl <- cdc_data_selected[ind, ]
+# cdc_data_val <- cdc_data_selected[!ind, ]
+# 
+# write.csv(cdc_data_selected, file = '../data/processed/NHANES_Lab2_DATASCI-203-used.csv')
+# write.csv(cdc_data_expl, file = '../data/processed/exploration_data.csv')
+# write.csv(cdc_data_val, file = '../data/processed/validation_data.csv')
+```
+
+```{r load data, include=FALSE}
+# cdc_data_expl <- read.csv('../data/processed/exploration_data.csv')
+# cdc_data_val <- read.csv('../data/processed/validation_data.csv')
+
+cdc_data_expl <- read.csv('exploration_data.csv')
+cdc_data_val <- read.csv('validation_data.csv')
+
+dim(cdc_data_expl)
+names(cdc_data_expl)
+
+cdc_data_expl_used <-cdc_data_expl%>% 
+                        select(Age, Race, Systolic.BP..mm.Hg.,
+                               Diastolic.BP..mm.Hg.,BMI..kg.m..2.,
+                               Alcohol.drinks.day, 
+                               General.health.condition, 
+                               Num.cigs.day,  
+                               Hours.day.sedentary.activity,
+                               Gender)%>%
+                        filter((Systolic.BP..mm.Hg.!=0)
+                               &(Diastolic.BP..mm.Hg.!=0)
+                               &(Hours.day.sedentary.activity<=24))
+cdc_data_expl_used['Race'] = as.factor(cdc_data_expl_used$Race)
+cdc_data_expl_used['Gender'] = as.factor(cdc_data_expl_used$Gender)
+colnames(cdc_data_expl_used)[colnames(cdc_data_expl_used) == 'Hours.day.sedentary.activity']<-'Sedentary'
+colnames(cdc_data_expl_used)[colnames(cdc_data_expl_used) == 'BMI..kg.m..2.']<-'BMI'
+
+dim(cdc_data_expl_used)
+names(cdc_data_expl_used)
+
+                        
+cdc_data_val_used <-cdc_data_val%>% 
+                        select(Age, Race, Systolic.BP..mm.Hg.,
+                               Diastolic.BP..mm.Hg.,BMI..kg.m..2.,
+                               Alcohol.drinks.day, 
+                               General.health.condition, 
+                               Num.cigs.day,  
+                               Hours.day.sedentary.activity,
+                               Gender)%>%
+                        filter((Systolic.BP..mm.Hg.!=0)
+                               &(Diastolic.BP..mm.Hg.!=0)
+                               &(Hours.day.sedentary.activity<=24))
+cdc_data_val_used['Race'] = as.factor(cdc_data_val_used$Race)
+cdc_data_val_used['Gender'] = as.factor(cdc_data_val_used$Gender)
+colnames(cdc_data_val_used)[colnames(cdc_data_val_used) == 'Hours.day.sedentary.activity']<-'Sedentary'
+colnames(cdc_data_val_used)[colnames(cdc_data_val_used) == 'BMI..kg.m..2.']<-'BMI'
+
+dim(cdc_data_val_used)
+names(cdc_data_val_used)
+```
+
+```{r Exploration/Visualization - examing data, include=FALSE, echo=FALSE}
+p_scatter_age_1 <- cdc_data_expl_used %>% ggplot(aes(x=Age, y=Systolic.BP..mm.Hg.))+geom_point()
+p_scatter_age_2 <- cdc_data_expl_used %>% ggplot(aes(x=Age, y=log(Systolic.BP..mm.Hg.)))+geom_point()
+p_scatter_BMI_1 <- cdc_data_expl_used %>% ggplot(aes(x=BMI, y=Systolic.BP..mm.Hg.))+geom_point()
+p_scatter_BMI_2 <- cdc_data_expl_used %>% ggplot(aes(x=log(BMI), y=Systolic.BP..mm.Hg.))+geom_point()
+p_scatter_sed <- cdc_data_expl_used %>% ggplot(aes(x=Sedentary.hours.day, y=Systolic.BP..mm.Hg.))+geom_point()
+p_scatter_BMI_sed <- cdc_data_expl_used %>% ggplot(aes(x=log(BMI)*Sedentary.hours.day, y=Systolic.BP..mm.Hg.))+geom_point()
+
+p1<-cdc_data_expl_used %>% ggplot(aes(x=Systolic.BP..mm.Hg.)) + geom_histogram()
+p2<-cdc_data_expl_used %>% ggplot(aes(x=log(Systolic.BP..mm.Hg.))) + geom_histogram()
+
+p3<-cdc_data_expl_used %>% ggplot(aes(x=Age)) + geom_histogram()
+p4<-cdc_data_expl_used %>% ggplot(aes(x=log(Age))) + geom_histogram()
+
+p5<-cdc_data_expl_used %>% ggplot(aes(x=BMI)) + geom_histogram()
+p6<-cdc_data_expl_used %>% ggplot(aes(x=log(BMI))) + geom_histogram()
+
+p7<-cdc_data_expl_used %>% ggplot(aes(x=Alcohol.drinks.day)) + geom_histogram()
+p8<-cdc_data_expl_used %>% ggplot(aes(x=log(Alcohol.drinks.day))) + geom_histogram()
+
+p9<-cdc_data_expl_used %>% ggplot(aes(x=Num.cigs.day)) + geom_histogram()
+p10<-cdc_data_expl_used %>% ggplot(aes(x=log(Num.cigs.day))) + geom_histogram()
+
+p11<-cdc_data_expl_used %>% ggplot(aes(x=Sedentary)) + geom_histogram()
+p12<-cdc_data_expl_used %>% ggplot(aes(x=log(Sedentary))) + geom_histogram()
+
+# p1/p2
+# p3/p4
+# p5/p6
+# p7/p8
+# p9/p10
+# p11/p12
+# p_scatter_age_1/p_scatter_age_2
+# p_scatter_BMI_1/p_scatter_BMI_2
+# p_scatter_sed/p_scatter_BMI_sed
+```
+
+```{r Exploration/Visualization - examing data - plot, include=FALSE, echo=FALSE, fig.dim = c(8, 2.5), fig.cap='BMI or log(BMI) (for reference)'}
+(p5|p6)/(p_scatter_BMI_1|p_scatter_BMI_2)
+```
+
+```{r Exploration - model specification, include=FALSE, echo=FALSE,  results='asis'}
+mod1 <- lm(Systolic.BP..mm.Hg.~Age, data=cdc_data_expl_used)
+mod2 <- lm(log(Systolic.BP..mm.Hg.)~Age, data=cdc_data_expl_used)
+mod3 <- lm(Systolic.BP..mm.Hg.~Age+BMI, data=cdc_data_expl_used)
+mod4 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI), data=cdc_data_expl_used)
+
+mod5 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary
+           +log(BMI)*Sedentary, data=cdc_data_expl_used)
+
+mod6 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary
+           +log(BMI)*Sedentary+Alcohol.drinks.day,data=cdc_data_expl_used)
+
+mod7 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary
+           +log(BMI)*Sedentary+Alcohol.drinks.day +Num.cigs.day, data=cdc_data_expl_used)
+
+mod8 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary
+           +log(BMI)*Sedentary+Alcohol.drinks.day +Race+Gender, data=cdc_data_expl_used)
+
+mod9 <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Alcohol.drinks.day+Race, data=cdc_data_expl_used)
+
+# summary(mod3)
+
+sm1 <-coeftest(mod1, vcov = vcovHC)[, 'Std. Error']
+sm2 <-coeftest(mod2, vcov = vcovHC)[, 'Std. Error']
+sm3 <-coeftest(mod3, vcov = vcovHC)[, 'Std. Error']
+sm4 <-coeftest(mod4, vcov = vcovHC)[, 'Std. Error']
+sm5 <-coeftest(mod5, vcov = vcovHC)[, 'Std. Error']
+sm6 <-coeftest(mod6, vcov = vcovHC)[, 'Std. Error']
+sm7 <-coeftest(mod7, vcov = vcovHC)[, 'Std. Error']
+sm8 <-coeftest(mod8, vcov = vcovHC)[, 'Std. Error']
+sm9 <-coeftest(mod9, vcov = vcovHC)[, 'Std. Error']
+
+# comparative F test
+f_test_by_var = Anova(mod8)
+f_test_two_mods1 = anova(mod1, mod4, test='F')
+f_test_two_mods2 = anova(mod4, mod8, test='F')
+
+# put together as a table
+# six_mods_tb = stargazer(mod1, mod4, mod5, mod6, mod7, mod8,
+#           type='text', se = list(sm1, sm4, sm5, sm6, sm7, sm8), 
+#           star.cutoffs = c(0.05, 0.01, 0.001), 
+#           header = FALSE,
+#           title = 'Example comparison table',
+#           column.sep.width = "-5pt",
+#           no.space=TRUE,
+#           font.size='footnotesize',
+#           single.row = TRUE,
+#           omit.stat =c('rsq','ser'),
+#           df=F)
+
+three_mods_tb= stargazer(mod1, mod4, mod8,
+          type='text', se = list(sm1, sm4, sm8), 
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          header = FALSE,
+          title = 'Example comparison table',
+          column.sep.width = "0pt",
+          no.space=TRUE,
+          font.size='footnotesize',
+          single.row = TRUE,
+          omit.stat =c('rsq','ser'),
+          df=F,
+          add.lines=list(c('Two-model F statistic', 'N/A', 
+                           paste(round(f_test_two_mods1$F[2],3),'***'), paste(round(f_test_two_mods2$F[2],3),'***')),
+                         c('Two-model F test Pr(>F)', 'N/A', 
+                           paste(format(f_test_two_mods1$Pr[2],digits=4,scientific = TRUE),'***'), paste(format(f_test_two_mods2$Pr[2],digits=4,scentific=TRUE),'***')))
+          )
+
+```
+
+## Data, Models and Visualizations
+This study uses data from the 2017-2018 National Health and Nutrition Examination Survey (NHANES), conducted by the CDC’s National Center for Health Statistics (NCHS). The sample includes non-institutionalized U.S. civilians over 20 years old. NHANES over-samples of certain groups to ensure representative statistics. The survey collects person-level demographic, health, and nutrition information through a standardized process.
+
+In our study, we utilize variables from the NHANES survey dataset to represent the key input variable age ($X$), SBP ($Y$) and other important hypertension risk factors identified in existing research. The "Age" and "SBP" variables directly reflect the conceptual information of each participant, while the risk factors are measured using closely related data proxies (as seen in below discussion). 
+The NHANES data comprises five main categories: Demographic, Dietary, Examination, Laboratory, and Questionnaire, each containing multiple datasets with specific information. We downloaded relevant datasets and developed functions to clean and merge them into a single dataframe, eliminating missing values and entries with invalid SBP values (i.e., SBP=0), and using the unique identifier $SEQN$ for merging. The final dataset has 4539 entries and 7 features. Subsequently, the dataset was randomly split into exploration and confirmation sets, with a 30% and 70% split respectively. All decisions regarding building intuition, data exploration, and model specification were based on the exploration set.
+
+Our model specifications are closely tied to our research question: whether a relationship exists between age and SBP. We explored this relationship through a series of OLS regressions using SBP as the outcome variable and age as the primary input variable. We begin with the simplest regression model including only age. Sequentially, we incorporate other established hypertension risk factors (identified in peer-reviewed literature and summarized in the introduction) to assess how those factors affect the "Age" coefficient of the regression. The other risk factors include (data proxies denoted in brackets): Body Mass Index (BMI), physical inactivity (sedentary hours per day), alcohol consumption (drinks per day), and genetics (race, gender). In our models, we did not intentionally leave out any variable to assess incremental impact. 
+
+```{r transforming dataframe for plots, echo=FALSE, include=FALSE}
+exp_data_cols <- cdc_data_expl_used %>% select(Systolic.BP..mm.Hg., Age, BMI, Sedentary, Gender, Race, Alcohol.drinks.day)
+new_names <- c("SBP", "age", "BMI", "sedentary","gender", "race", "alcoholic drinks/day")
+names(exp_data_cols) <- new_names
+exp_data_cols$race = as.factor(exp_data_cols$race)
+exp_data_cols$gender = as.factor(exp_data_cols$gender)
+exp_data_cols["sedentary"] <- sapply(exp_data_cols$sedentary, as.integer)
+exp_data_cols["SBP"] <- sapply(exp_data_cols$SBP, as.integer)
+exp_data_cols["alcoholic drinks/day"] <- sapply(exp_data_cols$"alcoholic drinks/day", as.integer)
+levels(exp_data_cols$race) <- c("African", "Mexican", "Multiracial", "Hispanic", "White")
+```
+\renewcommand{\arraystretch}{.85} 
+```{r summary_table, echo=FALSE, include=TRUE}
+st(exp_data_cols, 
+   vars = c("SBP", "age", "BMI", "sedentary", "alcoholic drinks/day"),
+   summ = c("notNA(x)", "mean(x)",  "sd(x)", "pctile(x)[50]"),
+   summ.names=c("Observations", "Mean", "Std. Dev", "Median"),
+   title='Summary Statistics of the Dataset',
+   labels=c("Sys. Blood Preassure (mmHg) (Y)", "Age (X)", "BMI (X)", "Sedentary hours/day (X)", "Alcoholic drinks/day (X)")
+  
+  ) %>%
+  kable_styling(latex_options = "HOLD_position", font_size=8)
+```
+**Table 1** presents summary statistics for the key numeric variables. The average SBP is 127 mmHg, with a median of 123 mmHg, indicating a slight right skew, as also observed in *Figure 1A*. The average age is 52, and the mean BMI is 30, suggesting that individuals in the sample are, on average, overweight (BMI > 25) and older than the general population. Alcohol consumption is low, with an average of 1.6 drinks per day. The other panels of **Figure 1** offer insights for model decisions. *Figure 1B* illustrates a visually positive association between Age and SBP, with a concentration of values around the age of 80 (due to all individuals older than 80 years being reported as age 80). While weight is expected to influence SBP, the BMI vs SBP plot in *Figure 1C* does not reveal a clear association. However, after applying a logarithmic transformation to BMI, the data spreads out, revealing a linear pattern (*Figure 1D*). Lastly, *Figure 1E* shows that the African American group exhibits the highest average SBP.
+
+```{r theme_settings, include=FALSE}
+theme <- theme_bw() +
+  theme(
+    text=element_text(size=7),
+   panel.grid.minor = element_blank(), 
+   panel.grid.major = element_blank(),
+   plot.background = element_rect(fill = "transparent", colour = NA))
+```
+
+```{r Plots, echo=FALSE, include=FALSE}
+plot0 <- exp_data_cols %>% 
+  ggplot(aes(x=SBP)) + 
+  geom_histogram(binwidth=5, color = "#0B3954", fill="#0B3954", alpha=0.1) +
+  labs(x="Systolic Blood Preassure", y = "Density", title = "Histogram of Systolic Blood Preassure", tag="A") +
+  theme
+
+plot1 <- exp_data_cols %>% 
+  ggplot(aes(x=age, y=SBP)) + 
+  geom_point(colour = "#0B3954", alpha=0.4) +
+  labs(x="Age", y = "Sys. Blood Preassure", title = "Figure A: Age vs Blood Preassure", tag="B") +
+  theme
+
+plot2_1 <- exp_data_cols %>% 
+  ggplot(aes(x=BMI, y=SBP)) + 
+  geom_point(colour = "#FF6663", alpha=0.4) +
+  labs(x="BMI", y = "Sys. Blood Preassure", title = "BMI vs Blood Preassure", tag="C") +
+  theme
+
+plot2_2 <- exp_data_cols %>% 
+  ggplot(aes(x=log(BMI), y=SBP)) + 
+  geom_point(colour = "#FF6663", alpha=0.4) +
+  labs(x="Log(BMI)", y = "Sys. Blood Preassure", title = "Log(BMI) vs Blood Preassure", tag="D") +
+  theme
+
+plot3 <- exp_data_cols %>%
+  ggplot(aes(x = race, y = SBP)) + 
+  geom_boxplot(color="#629962", fill="#629962", alpha = 0.1) +
+  labs(x=NULL, y="Sys. Blood Preassure", title = "Blood Preassure by Race group", tag="E") +
+  theme +
+  theme(axis.text.x=element_text(angle=10))
+
+```
+
+```{r print Plots, echo=FALSE, include=TRUE, fig.dim=c(8,5), fig.cap ="Grid plots of relationships between explanatory variables and blood preassure"}
+(plot0|plot1)/(plot2_1|plot2_2)/(plot3)
+```
+
+**Large sample linear regression** requires two key assumptions: I.I.D. samples, and the unique BLP exists. Given the strict NHANES sampling process and wide coverage, we considered samples are largely independent and from the same distribution. However, the independence may be challenged given the samples are tilted towards elderly population. We examined and ruled out perfect collinearity and heavy tails (See *Figure 1A*).
+
+Upon examining data and fundamental relationships, we explored two input variable transformations. **Firstly**, we considered using the logarithm of BMI to address BMI’s skewed distribution and ensure more consistent residuals' dispersion from a regression of SBP on BMI. **Secondly**, we introduced an interaction term between log(BMI) and sedentary hours to understand how time of physical inactivity directly and indirectly affects SBP through BMI changes. Per peer-reviewed literature, sedentary lifestyle is known to contribute to weight gain, which also influences blood pressure. This allows us to capture both the individual effects of these variables and their combined influence on SBP.
+
+```{r Validation - model specification,include=TRUE, echo=FALSE,  results='asis', fig.dim=c(2,2)}
+mod1_v <- lm(Systolic.BP..mm.Hg.~Age, data=cdc_data_val_used)
+mod2_v <- lm(log(Systolic.BP..mm.Hg.)~Age, data=cdc_data_val_used)
+mod3_v <- lm(Systolic.BP..mm.Hg.~Age+BMI, data=cdc_data_val_used)
+mod4_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI), data=cdc_data_val_used)
+mod5_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary+
+             log(BMI)*Sedentary, data=cdc_data_val_used)
+
+mod6_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary+
+               log(BMI)*Sedentary+Alcohol.drinks.day,data=cdc_data_val_used)
+
+mod7_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary+
+               log(BMI)*Sedentary+Alcohol.drinks.day +Num.cigs.day, data=cdc_data_val_used)
+
+mod8_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Sedentary+
+               log(BMI)*Sedentary+Alcohol.drinks.day+Race+Gender,data=cdc_data_val_used)
+
+mod9_v <- lm(Systolic.BP..mm.Hg.~Age+log(BMI)+Alcohol.drinks.day+Race, data=cdc_data_val_used)
+
+sm1_v <-coeftest(mod1_v, vcov = vcovHC)[, 'Std. Error']
+sm2_v <-coeftest(mod2_v, vcov = vcovHC)[, 'Std. Error']
+sm3_v <-coeftest(mod3_v, vcov = vcovHC)[, 'Std. Error']
+sm4_v <-coeftest(mod4_v, vcov = vcovHC)[, 'Std. Error']
+sm5_v <-coeftest(mod5_v, vcov = vcovHC)[, 'Std. Error']
+sm6_v <-coeftest(mod6_v, vcov = vcovHC)[, 'Std. Error']
+sm7_v <-coeftest(mod7_v, vcov = vcovHC)[, 'Std. Error']
+sm8_v <-coeftest(mod8_v, vcov = vcovHC)[, 'Std. Error']
+sm9_v <-coeftest(mod9_v, vcov = vcovHC)[, 'Std. Error']
+
+# comparative F test
+f_test_by_var_v = Anova(mod8_v)
+f_test_two_mods1_v = anova(mod1_v, mod4_v, test='F')
+f_test_two_mods2_v = anova(mod4_v, mod8_v, test='F')
+
+# put together as a table
+# six_mods_tb_v = stargazer(mod1_v, mod4_v, mod5_v, mod6_v, mod7_v, mod8_v,
+#           type='text', se = list(sm1_v, sm4_v, sm5_v, sm6_v, sm7_v, sm8_v),
+#           star.cutoffs = c(0.05, 0.01, 0.001), 
+#           header = FALSE,
+#           title = 'Systolic Blood Pressure and Risk Factors: OLS Regression Summary',
+#           column.sep.width = "-6pt",
+#           no.space=TRUE,
+#           font.size='footnotesize',
+#           single.row = TRUE,
+#           omit.stat =c('rsq','ser'),
+#           intercept.top=TRUE, intercept.bottom=FALSE,
+#           order = match(c("Age","log(BMI)","Sedentary",
+#                           "log(BMI):Sedentary","Alcohol.drinks.day"
+#                           ,"Num.cigs.day","RaceMexican American",
+#                           "RaceOther / Multi-Racial", "RaceOther Hispanic",
+#                           "RaceWhite","GenderM","(Intercept)"),
+#                         names(mod8_v[["coefficients"]])),
+#           covariate.labels=c('Age', 'log(BMI)','Sedentary hrs/day','log(BMI):Sedentary',
+#                              'Alcohol drinks/day','Cigs/day',
+#                              'Mexican American','Other/Multi-Racial','Other Hispanic',
+#                              'White','Male', 'Constant'),
+#           notes = 'For race, African American is omitted; for gender, female is omitted; *p<0.05; **p<0.01; ***p<0.001', 
+#           notes.align = 'l', notes.append = FALSE,
+#           df=F)
+
+three_mods_tb_v = stargazer(mod1_v, mod4_v, mod8_v,
+          type='latex', se = list(sm1_v, sm4_v, sm8_v),
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          header = FALSE,
+          title = 'Systolic Blood Pressure and Risk Factors: OLS Regression Summary',
+          column.sep.width = "-3pt",
+          no.space=TRUE,
+          font.size='footnotesize',
+          single.row = TRUE,
+          omit.stat =c('rsq','ser'),
+          intercept.top=TRUE, intercept.bottom=FALSE,
+          dep.var.labels=c("Systolic Blood Pressure (mmHg)"),
+          order = match(c("Age","log(BMI)","Sedentary",
+                          "log(BMI):Sedentary","Alcohol.drinks.day"
+                          ,"RaceMexican American",
+                          "RaceOther / Multi-Racial", "RaceOther Hispanic",
+                          "RaceWhite","GenderM","(Intercept)"),
+                        names(mod8_v[["coefficients"]])),
+          covariate.labels=c('Age', 'log(BMI)','Sedentary hrs/day','log(BMI):Sedentary',
+                             'Alcohol drinks/day',
+                             'Mexican American','Other/Multi-Racial','Other Hispanic',
+                             'White','Male', 'Constant'),
+          notes ='Race: African American is omitted; gender: female is omitted; last F-stat is vs constant', 
+          notes.align = 'l', notes.append = TRUE,
+          df=F,
+          add.lines=list(c('Two-model F-test Pr(>F)(vs lhs model)', 'N/A', 
+                 paste(format(f_test_two_mods1_v$Pr[2],digits=4, scentific=TRUE),'***'), paste(format(f_test_two_mods2_v$Pr[2], digits=4,scentific=TRUE),'***')))
+          )
+
+```
+## Results, Limitations and Conclusions
+Key model findings are derived from the confirmation set, using robust standard errors, and summarized in **Table 2**. $\textbf{1.}$ The coefficient for age is consistently significant at 0.1% significance level across all model specifications and maintains a stable magnitude. This indicates a meaningful linear relationship between SBP and age, suggesting that a one-year increase in age is associated with a approximately 0.5 mmHg increase in SBP, all else equal. $\textbf{2.}$ BMI and race all have statistically significant coefficients at 0.1% significance level, supporting their established roles in influencing SBP. $\textbf{3.}$ Both alcohol consumption and gender coefficient is significant at 1% significance level. $\textbf{4.}$ Neither the direct effect of sedentary hours on SBP nor the indirect effect through BMI changes were statistically significant.
+
+In terms of practical significance, these results addressed the main research question regarding SBP and age, and regarding the additional key risk factors, which are aligned with existing peer-reviewed publications. While the adjusted $R^{2}$ is only around $~ 20%$, indicating a moderate level of variance explained, the significant F-statistic for all models (compared to the restrictive model with only a constant term), confirm that the included input variables help to describe changes in SBP.
+
+We recognized that our descriptive model analysis has limitations. **Population representation and modeling**: The dataset, although collected from a reputable source, does not reflect the US population's age distribution, skewing towards the elderly population and potentially compromising the I.I.D. assumption. **Data availability on other factors**: Public literature highlights various environmental and genetic factors influencing blood pressure. Unfortunately, our dataset lacks comprehensive data on these factors (e.g. salt overconsumption, family history, ect.). **Medical expertise**: due to lack of domain expertise, we relied on variables discussed in literature, potentially overlooking relevant factors. 
+
+Despite these limitations, our study provides evidence that age has a significant linear relationship with SBP. Although the coefficient's magnitude is small, the practical significance remains meaningful. This study could  be of interest to healthcare and research institutions aiming to develop preventative healthcare strategies and promote healthy lifestyle.  

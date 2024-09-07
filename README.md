@@ -4,7 +4,7 @@ This is a repo dedicated to demonstrate some of my data science projects conduct
 
 ## Project topics
 
-The projects focus on analyzing a variety of academic and practical topics using statistical methods and machine learning techniques. The main languages used to construct the analysis are either python or R. In selective topics, SQL and non-SQL database languages, such as Neo4j are used as well. 
+The projects focus on analyzing a variety of academic and practical topics using statistical methods and machine learning techniques. The main languages used to construct the analysis are either python or R. In selective topics, SQL and NoSQL database languages, such as Neo4j are used as well. 
 
 ## Structure of the repo
 

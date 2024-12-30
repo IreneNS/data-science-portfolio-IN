@@ -6,30 +6,32 @@ This is initially a group project with more than one contributors. The overall r
 
 ## Introduction and Project Objective
 
-Efficiently managing on-time flight arrivals and departures is a critical logistical challenge influenced by various factors such as weather, airports, and aircraft. While considering all potential disruptions is impractical, delay predictions can be made using historical and real-time data, aiding airlines in contingency planning and improving passenger satisfaction.
+- Efficiently managing on-time flight arrivals and departures is a critical logistical challenge influenced by various factors such as weather, airports, and aircraft. While considering all potential disruptions is impractical, delay predictions can be made using historical and real-time data, aiding airlines in contingency planning and improving passenger satisfaction.
 
-To address this, our project aims to predict the likelihood of departure delays two hours before departure using flight, airport and weather data from the U.S. Department of Transportation and the National Oceanic and Atmospheric Administration from 2015 to 2019. To reflect the cost analysis results, we chose F2 score of delay over 15 minutes as the main prediction metric, as delays more than 15 minutes tend to cost more. The F2 score, a measure that balances precision and recall with more focus on recall, is particularly relevant in our context as both false positive and false negative are costly, but high false negative (low recall) costs more to the airlines. In short, our goal is to build a multi-class classification predictor, focusing on achieving balanced precision and recall for the delay group.
+- To address this, our project aims to predict the likelihood of departure delays two hours before departure using flight, airport and weather data from the U.S. Department of Transportation and the National Oceanic and Atmospheric Administration from 2015 to 2019. 
+
+- To reflect the cost analysis results, we chose F2 score of delay over 15 minutes as the main prediction metric, as delays more than 15 minutes tend to cost more. The F2 score, a measure that balances precision and recall with more focus on recall, is particularly relevant in our context as both false positive and false negative are costly, but high false negative (low recall) costs more to the airlines. In short, our goal is to build a multi-class classification predictor, focusing on achieving balanced precision and recall for the delay group.
 
 ## Key Takeaways and Results
 
-The key challenges of this project lie in (1). the formidable size, (2). imbalanced portion of inputs data, and (3). time series nature of the input and prediction problem. Therefore, parallel processing is required, data imbalance needs to be treated, and data leakage needs to be very carefully prevented throughout the processes. A lot of the traditional cookie-cutter ML processes are no longer applicable here. 
+- The key challenges of this project lie in (1). the formidable size, (2). imbalanced portion of inputs data, and (3). time series nature of the input and prediction problem. Therefore, parallel processing is required, data imbalance needs to be treated, and data leakage needs to be very carefully prevented throughout the processes. A lot of the traditional cookie-cutter ML processes are no longer applicable here. 
 
-After careful data pre-processing, we added derived features from airports and flights based on lag, recency, centrality and time series, ensuring there is no data leakage in the process. As it turns out, the feature derived from lag information becomes the most important contributor. 
+- After careful data pre-processing, we added derived features from airports and flights based on lag, recency, centrality and time series, ensuring there is no data leakage in the process. As it turns out, the feature derived from lag information becomes the most important contributor. 
 
-Logistic regression (LR) was used as a baseline for modeling. It achieved a 48.4% F2 score for delays over 15 minutes, significantly outperforming random guessing (given original delay group counts for <20% of data). Advanced models such as random forest, XGBoost, and neural networks further improved F2 scores to 53.5%, 55.5%, and 56.4%, respectively. Specifically, for neural networks, we tried MPC (F2 = 40.6%), GRU (F2 = 54.3%), and TCN (F2 = 56.4%).
+- Logistic regression (LR) was used as a baseline for modeling. It achieved a 48.4% F2 score for delays over 15 minutes, significantly outperforming random guessing (given original delay group counts for <20% of data). Advanced models such as random forest, XGBoost, and neural networks further improved F2 scores to 53.5%, 55.5%, and 56.4%, respectively. Specifically, for neural networks, we tried MPC (F2 = 40.6%), GRU (F2 = 54.3%), and TCN (F2 = 56.4%).
 
-We recommend TCN for its superior performance but suggest Random Forest for interpretability. Overall, XGBoost performed efficiently for computation requirements and has comparable F2 scores to our highest-scoring model. Depending on airline priorities, they can choose one of these models.
+- We recommend TCN for its superior performance but suggest Random Forest for interpretability. Overall, XGBoost performed efficiently for computation requirements and has comparable F2 scores to our highest-scoring model. Depending on airline priorities, they can choose one of these models.
 
 ## Data Sources
 
-The flight dataset was downloaded from the [US Department of Transportation](https://www.transtats.bts.gov/homepage.asp) to an external site. and contains flight information from 2015 to 2021
+- The flight dataset was downloaded from the [US Department of Transportation](https://www.transtats.bts.gov/homepage.asp) to an external site. and contains flight information from 2015 to 2021
 (Note flight data for the period [2015-2019] has the following dimensionality  31,746,841 x 109). 
 
-The weather dataset was downloaded from the [National Oceanic and Atmospheric Administration repository](https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00679) and contains weather information from 2015 to 2021. The dimensionality of the weather data for the period [2015-2019] is 630,904,436 x 177.
+- The weather dataset was downloaded from the [National Oceanic and Atmospheric Administration repository](https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00679) and contains weather information from 2015 to 2021. The dimensionality of the weather data for the period [2015-2019] is 630,904,436 x 177.
 
-The airport dataset was downloaded from the [US Department of Transportation](https://www.transtats.bts.gov/homepage.asp) and has the following dimensionality: 18,097 x 10.
+- The airport dataset was downloaded from the [US Department of Transportation](https://www.transtats.bts.gov/homepage.asp) and has the following dimensionality: 18,097 x 10.
 
-We utilize the carefully curated 5-year (2015-2019) OTPW dataset, which is a result of merging the airport dataset with the weather dataset. The original data was in CSV format, but for the sake of efficiency, we converted it to Parquet for the subsequent processing steps.
+- We utilize the carefully curated 5-year (2015-2019) OTPW dataset, which is a result of merging the airport dataset with the weather dataset. The original data was in CSV format, but for the sake of efficiency, we converted it to Parquet for the subsequent processing steps.
 
 ## The Key Challenges
 
@@ -40,13 +42,17 @@ Secondly, the group that matters to us, the delay group, is the minority group i
 Thirdly, the time series nature of input data and prediction makes it extremely important to understand, process and analyze data thoroughly and appropriately to avoid leakage (i.e. using future information to predict the past event) and prevent artificially inflated prediction results. This is also a inplicit test for our team's intellectual honesty throughout the project. 
 
 ## Pipeline Design
-Step 0: Preprocessing 
-Step 1: Post processing EDA
-Step 2: Feature Selection and Feature Engineering - careful feature screening and engineering are done to keep the most relevant features, derive new featues while avoid leakage 
-Step 2: Scaling, and Encoding - Scale numerical and label encoded features using min-max scaler to combat skewness; encoding categorical variables to numerical representation, adapting binary encoding when dimension reduction is needed.
-Step 3: Cross Validation and Grid Search - time series aware cross validation (block CV) is used to prevent leakage
-Step 4: Model Training and Evaluation
-Step 5: Find optimal algorithm and fine-tune
+- Step 0: Preprocessing 
+- Step 1: Post processing EDA
+- Step 2: Feature Selection and Feature Engineering
+  - Careful feature screening and engineering are done to keep the most relevant features, derive new featues while avoid leakage 
+- Step 3: Scaling, and Encoding
+  - Scale numerical and label encoded features using min-max scaler to combat skewness;
+  - Encode categorical variables to numerical representation, adapt binary encoding when dimension reduction is needed.
+- Step 4: Cross Validation and Grid Search
+  - Time series aware cross validation (block CV) is used to prevent leakage
+- Step 5: Model Training and Evaluation
+- Step 6: Find optimal algorithm and fine-tune
 
 ## High-Level Summary of Data Description (pre-processing and EDA)
 - **Data Preprocessing and EDA**: 

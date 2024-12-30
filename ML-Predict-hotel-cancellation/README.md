@@ -85,7 +85,7 @@ Both random forest and XGboost presents compelling results in terms of model per
         - [Link to Y_val.csv](https://drive.google.com/file/d/15McQmxIcCQuA2LWOrwls8YPBqnMMu3kq/view?usp=drive_link)
         - [Link to Y_test.csv](https://drive.google.com/file/d/1zavZSdGN8e7JJfB3Kwbujye-tV8UhGIS/view?usp=drive_link)
 
-- **analysis-combined/**
+- **code-and-analysis/**
   - Contains modularized Jupyter notebooks used for data loading, data preprocessing, EDA, baseline model, and various experiments for ML modeling and evaluation. The folder includes the following Jupyter notebooks (my part of the code):
     - **Data Preprocessing and EDA**: Hotel_Cancellation_Data_Preprocessing_EDA.ipynb
     - **Baseline Model (logistic regression)**: Hotel_Cancellation_Baseline_Logistic_Regression.ipynb

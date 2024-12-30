@@ -105,11 +105,11 @@ Optimizing models for the F2 score for the class more than 15-minute delay, our 
     - The data is not hosted in Github.
 
 - **analysis-combined/**
-  - Contains modularized Jupyter notebooks used for data loading, data preprocessing, EDA, feature engineering, encoding and scaling, baseline model, and various experiments for ML modeling and evaluation. The folder includes the following Jupyter notebooks derived htmls (my part of the code):
-    - **Data EDA**: IN- post-processing-EDA-w261_final_project.html
-    - **Feature engineering, Encoding and Scaling**: IN- feature-engineering-encoding-notebook-version.html
-    - **Baseline Model (logistic regression)**: IN-Logistic-Regression-w261_final_project.html
-    - **XG Boost**: IN-XGBoost -w261_final_project.html
+  - Contains modularized Jupyter notebooks used for data loading, data preprocessing, EDA, feature engineering, encoding and scaling, baseline model, and various experiments for ML modeling and evaluation. The folder includes the following Jupyter notebooks and related htmls (my part of the code):
+    - **Data EDA**: IN- post-processing-EDA-w261_final_project.ipynb
+    - **Feature engineering, Encoding and Scaling**: IN- feature-engineering-encoding-notebook-version.ipynb
+    - **Baseline Model (logistic regression)**: IN-Logistic-Regression-w261_final_project.ipynb
+    - **XG Boost**: IN-XGBoost -w261_final_project.ipynb
 
 
 - **README.md**

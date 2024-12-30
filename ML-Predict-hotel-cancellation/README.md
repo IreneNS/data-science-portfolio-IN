@@ -8,7 +8,7 @@ This is initially a group project with more than one contributors. The overall r
 
 Hotel cancellations can result in significant losses due to lost revenue and reputational risks from overbooking. To address this, our project aims to predict the likelihood of hotel booking cancellations using machine learning. By accurately forecasting cancellations, hotels can develop strategies to minimize last-minute cancellations and create dynamic pricing models to account for potential cancellations.
 
-## Source Data
+## Sources of Data
 
 The original source data is from Kaggle.com. We downloaded the dataset from Kaggle via this link: https://www.kaggle.com/datasets/youssefaboelwafa/hotel-booking-cancellation-prediction. The Kaggle dataset is provided in CSV format, ensuring ease of use with popular data science libraries such as Pandas and scikit-learn. A detailed data dictionary is included to guide users through the interpretation of each feature. As cited from Kaggle: “The data is originally from the article Hotel Booking Demand Datasets, written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019.”
 

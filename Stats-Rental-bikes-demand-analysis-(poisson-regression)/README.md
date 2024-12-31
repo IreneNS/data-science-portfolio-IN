@@ -62,10 +62,7 @@ The data consists of 8760 entries, and 13 features in total, including:
   - the rmd file (using langauge R) supporting the analysis is saved here 
 
 - **report**
-  - a report generated from the rmd file with Latex format is saved here
-
-- **presentation**
-  - a short final project presentation is presented here
+  - a report (pdf) generated from the rmd file with Latex format is saved here
 
 - **README.md**
   - This file, detailing the project summary and repo structure.

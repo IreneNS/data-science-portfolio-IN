@@ -1,0 +1,556 @@
+---
+title: "Rental Bike Demand Analysis"
+author: "William Lei, Irene Na, Safi Aharoni, Kelly Short"
+output: bookdown::pdf_document2
+geometry: margin=1in
+fontsize: 10pt
+header-includes:
+  - \setcounter{page}{0}
+---
+<style> pre { margin-bottom: -12px; } </style>
+
+```{r import libraries, include=FALSE}
+
+library(tidyverse)
+library(car)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(ggplot2)
+library(patchwork)
+library(mcprofile)
+# library(magrittr)
+# library(effsize)
+# library(wooldridge)
+library(Hmisc)
+library(reshape2)
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning = FALSE,  fig.pos = "H")
+library(vtable)
+library(effects)
+library(dplyr)
+library(kableExtra)
+library(AER)
+library(MASS)
+```
+
+\newpage
+# Introduction
+
+Rental bikes are an essential transportation service in many cities, supporting both work commutes and leisure activities. One city in which rental bikes are a key public service is Seoul, South Korea. It is important for the city to ensure rental bike availability and accessibility, lessening wait times during peak demand. To do so, the city needs to be able to predict how many rental bikes need to be available on different days and at different times. In this report, we aim to provide decision makers with insights into the factors influencing rental bike usage and demand, facilitating availability for the public by controlling for relevant factors such as weather conditions, seasonality, and time of day. We hypothesize that these factors, particularly temperature, season, and time of day, significantly impact rental bike demand, with specific conditions like higher temperatures and rush hours leading to increased usage.
+ 
+# Data 
+
+## Description 
+
+The dataset contains the count of public bicycles rented per hour in the Seoul Bike Sharing System, with corresponding weather data and holiday information The data consists of 8760 entries, and 13 features in total. Unfortunately, the data collection and sampling process is not explicitly detailed in the provided dataset documentation, which limits our understanding of potential biases or limitations in the data.
+
+The features include Temperature, Humidity, Windspeed, Visibility, Dewpoint, Solar radiation, Snowfall, Rainfall, the number of bikes rented per hour and date information. In this report we used different regression models to explore the connections between hourly bike demand and various weather conditions to predict the bike demand in a statistically robust way.
+
+## EDA 
+
+Below is our approach for exploratory data analysis. For numerical/metric variables, including the response variable, we explore both their distributions and summary statistics. First, we found that the response variable is right skewed, with a wider span than its mean. Second, the variables 'Visibility', 'Solar_radiation', 'Rainfall', and 'Snowfall', by their nature, have relatively sparse and skewed distributions Third, other metric variables, such as ‘Temperature’, are relatively well-behaved, with fewer significant outliers and less skew. Table 1 shows summary statistics for a selection of the metric variables.
+For categorical variables (namely 'Hour', 'Seasons', 'Holiday', and 'Functioning_day'), we looked at their counts and noted that except for certain hours (such as 5am) and non-functioning days, all groups are relatively well represented. In pre-processing, we found no missing values (NA) in the dataset, which simplified the pre-processing.
+
+```{r EDA, load data, include=FALSE}
+# rentb_0 <- read.csv('../data/SeoulBikeData.csv', header=T,na.strings=c('', 'NA'))
+rentb_0 <- read.csv('../data/SeoulBikeData.csv', header=T,na.strings=c('', 'NA'), fileEncoding = "latin1")
+# IN: note '../data...' means back out one layer directory first; './data...' means find the folder in current directory
+```
+
+```{r, include=FALSE}
+# colnames(rentb_0)
+```
+
+```{r EDA - examing data, data preprocessing, include=FALSE}
+# Overall information
+dim(rentb_0)
+colnames(rentb_0)
+
+# Check NA columns
+# summary(df_0)
+df_nasum <- as.data.frame(colSums(is.na(rentb_0)))
+colnames(df_nasum)<-'na.sum'
+df_nasum%>%filter(df_nasum$na.sum>0)
+
+# Adjust column names
+rentb_used = data.frame(rentb_0)
+
+colnames(rentb_used)[colnames(rentb_used)=='Rented.Bike.Count']<-'Rented_bike_count'
+colnames(rentb_used)[colnames(rentb_used)=='Temperature..C.']<-'Temperature'
+# colnames(rentb_used$Temperature..C.)<-'Temperature'
+colnames(rentb_used)[colnames(rentb_used)=='Humidity...']<-'Humidity'
+colnames(rentb_used)[colnames(rentb_used)=='Wind.speed..m.s.']<-'Wind_speed'
+colnames(rentb_used)[colnames(rentb_used)=='Visibility..10m.']<-'Visibility'
+colnames(rentb_used)[colnames(rentb_used)=='Dew.point.temperature..C.']<-'Dew_point_temp'
+colnames(rentb_used)[colnames(rentb_used)=='Solar.Radiation..MJ.m2.']<-'Solar_radiation'
+colnames(rentb_used)[colnames(rentb_used)=='Rainfall.mm.']<-'Rainfall'
+colnames(rentb_used)[colnames(rentb_used)=='Snowfall..cm.']<-'Snowfall'
+colnames(rentb_used)[colnames(rentb_used)=='Functioning.Day']<-'Functioning_day'
+# 
+# write.csv(rentb_used, file = '../data/processed/rentb_data_used.csv')
+```
+
+```{r read adjusted data from file, avoid encoding issue at knitting, include=FALSE}
+# rentb_used = read.csv('../data/processed/rentb_data_used.csv', header=T)[,-1] # remove first column
+
+
+# Adjust data format as needed
+rentb_used$Hour <- factor(rentb_used$Hour)
+rentb_used$Seasons <- factor(rentb_used$Seasons)
+rentb_used$Holiday <- factor(rentb_used$Holiday)
+rentb_used$Functioning_day <- factor(rentb_used$Functioning_day)
+
+# glimpse of the data after adjustment
+str(rentb_used)
+```
+
+
+```{r overallstats, include=TRUE, echo=FALSE}
+summary_sel_num <- summary(rentb_used)[c(1,3,4,6), c("Rented_bike_count", " Temperature", "Dew_point_temp",
+                       "Solar_radiation", "  Visibility","   Humidity")]
+
+summary_sel_factor <- summary(rentb_used)[,c("     Hour","  Seasons", "      Holiday","Functioning_day")]
+
+sumtable(rentb_used, 
+   vars = c("Rented_bike_count", "Temperature", "Dew_point_temp",
+                       "Solar_radiation", "Visibility","Humidity"),
+   summ = c("notNA(x)", "mean(x)",  "sd(x)", "pctile(x)[50]"),
+   summ.names=c("Observations", "Mean", "Std. Dev", "Median"),
+   title='Summary Statistics of Selective Numerical Variables',
+   labels=c("Rented_bike_count(Y)", "Temperature", "Dew_point_temp",
+                       "Solar_radiation", "Visibility","Humidity")
+  )  %>%
+  kable_styling(latex_options = "HOLD_position", font_size=7)
+
+```
+
+
+## Data visualization - numerical/metric variables
+We use Pearson correlation heatmap to examine how numerical variables are correlated with rental bike counts, and how they are correlated with each other. Further, we also examine the pair-wise relationship between rented bike count (Y) and numerical variables through a scatter plot to discern any obvious non-linear relationships. 
+
+```{r EDAnumericalcols, echo=FALSE, fig.height=1.9, fig.width=8, fig.align = 'center', fig.cap='Correlation of Rented Bike Count (Y) vs Numerica Variables'}
+
+numeric_cols <- names(rentb_used)[sapply(rentb_used, is.numeric)]
+factor_cols <- names(rentb_used)[sapply(rentb_used, is.factor)]
+
+corr_matrix <-(cor(rentb_used[, numeric_cols]))
+
+# correlation heatmap (pearson correlation)
+melted_corr <- melt(corr_matrix)
+heatmap_corr_p <- ggplot(data=melted_corr[c(1:9),], aes(x=Var1, y=Var2, fill=value))+
+  geom_tile(color='white') +
+  scale_fill_gradient2(low = "blue", high = 'red', mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+    name="Pearson\nCorrelation")+
+  geom_text(aes(label=sprintf('%.2f', value)), color='black', size=3)+
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 30, vjust = 1, 
+    size = 8, hjust = 1))+ 
+labs(title='Correlation of Rented Bike Count (Y) vs Numerica Variables',
+    xlabel = 'Numerical Variables',
+    ylabel='Response Variable')
+
+heatmap_corr_p 
+```
+```{r EDAnumericalcols2, echo=FALSE, fig.cap='Scatter plot - Rented Bike Count (Y) vs Numerical variables with higher correlations', fig.dim=c(5,3), include=FALSE}
+
+# scatterplotMatrix(~Rented_bike_count+Temperature+Humidity+
+#     Visibility+Solar_radiation, data=rentb_used)
+```
+
+```{r EDAnumericalcols3, echo=FALSE, fig.cap='Scatter plot - Rented Bike Count (Y) vs Variables with Potential Non-linear Relationship', fig.dim=c(9,2.8), include=TRUE}
+
+# Response variable distribution
+# summary(rentb_used$Rented_bike_count)
+# var(rentb_used$Rented_bike_count)  
+
+# hist(rentb_used$Rented_bike_count, breaks = 50, main = "Distribution of Rented Bike Count", xlab = "Rented Bike Count", ylab = "Frequency")
+Y_hist <-rentb_used %>% ggplot(aes(x=Rented_bike_count)) + geom_histogram()+
+  labs(title = 'Distribution of Rented Bike Count', x = 'Rented Bike Count', y = 'Count') +
+  theme(plot.title = element_text(size = 10),  # Adjust title size
+        axis.text = element_text(size = 8),    # Adjust axis text size
+        axis.title = element_text(size = 9))
+
+# Scatterplot for Temperature
+scatter_pT <- ggplot(rentb_used, aes(x = Temperature, y = Rented_bike_count)) +
+  geom_point(alpha = 0.5, size =1) +
+  geom_smooth(method = 'loess', color = 'blue') +
+  labs(title = 'Temperature vs. Rented Bike Count', x = 'Temperature (°C)', y = 'Rented Bike Count') +
+  theme(plot.title = element_text(size = 10),  # Adjust title size
+        axis.text = element_text(size = 8),    # Adjust axis text size
+        axis.title = element_text(size = 9))
+
+# Scatterplot for Humidity
+scatter_pH <- ggplot(rentb_used, aes(x = Humidity, y = Rented_bike_count)) +
+  geom_point(alpha = 0.5, size =1) +
+  geom_smooth(method = 'loess', color = 'blue') +
+  labs(title = 'Humidity vs. Rented Bike Count', x = 'Humidity (%)', y = 'Rented Bike Count') +
+  theme(plot.title = element_text(size = 10),  # Adjust title size
+      axis.text = element_text(size = 8),    # Adjust axis text size
+      axis.title = element_text(size = 9))
+
+Y_hist |scatter_pT | scatter_pH 
+```
+
+The key obervations from the correlation check (**Figure 1**) and scatter plot (**Figure 2**) for numerical variables are:
+**1.** Temperature, dew point temperature, solar radiation, visibility, and humidity appear to have higher correlation with rental bike count than other variables (absolute correlation >=20%).
+**2.** Temperature and dew point temperature are highly correlated (~90%), and therefore we consider dropping dew point temperature as a variable in our modeling to avoid serious multi-collinearity.
+**3.** We also note from the scatter plots that temperature and humidity may have a nonlinear relationship with rented bike count. 
+**4.** The wide rented bike count dispersion compared to its mean may cause issues for a Poisson regression fit.
+
+## Data visualization - categorical/factor variables
+We use boxplots to examine how each factor variable is correlated with rental bike counts (**Figure 3**).
+
+```{r EDAfactorcols, fig.height=9, fig.width=9, echo=FALSE, fig.cap='Boxplots of Rented Bike Count (Y) vs Categorical Variables'}
+# IN: - Use `fig.height` and `fig.width` if you want to set the height and width independently or if you want to make incremental adjustments to one dimension at a time. - Use `fig.dims` if you prefer a more compact and unified way to specify both dimensions.
+
+p_hr <- rentb_used %>%
+  ggplot(aes(Hour, Rented_bike_count)) + geom_boxplot(aes(fill=Hour)) +
+  ggtitle('Rented Bike Count by Hour')+
+  # theme(plot.title = element_text(lineheight = 1, face = "bold")) +
+  ylab('Rented bike count') + xlab('Hour')
+# p_hr
+p_season <- rentb_used %>%
+  ggplot(aes(Seasons, Rented_bike_count)) + geom_boxplot(aes(fill=Seasons)) +
+  ggtitle('Rented Bike Count by Seasons')+
+  # theme(plot.title = element_text(lineheight = 1, face = "bold")) +
+  ylab('Rented bike count') + xlab('Seasons')
+
+p_holiday <- rentb_used %>%
+  ggplot(aes(Holiday, Rented_bike_count)) + geom_boxplot(aes(fill=Holiday)) +
+  ggtitle('Rented Bike Count by Holiday (Yes or No)')+
+  # theme(plot.title = element_text(lineheight = 1, face = "bold")) +
+  ylab('Rented bike count') + xlab('Holiday (yes or no)')
+
+p_functioning <- rentb_used %>%
+  ggplot(aes(Functioning_day, Rented_bike_count)) + geom_boxplot(aes(fill=Functioning_day)) +
+  ggtitle('Rented Bike Count by Functioning_day (Yes or No)')+
+  # theme(plot.title = element_text(lineheight = 1, face = "bold")) +
+  ylab('Rented bike count') + xlab('Functioning day (Yes or No)')
+
+# grid.arrange(p_hr, p_season, p_holiday, p_functioning, nrow=4, ncol=1)
+p_hr/p_season/p_holiday/p_functioning
+
+```
+
+The key observations from the boxplots analysis regarding the relationship between factor variables and rented bike count are:
+
+**1.** We see visibly notable differences in median rented bike counts among different levels for all four factor variables. Therefore we believe that it is reasonable to include all four of them in our regression analysis. 
+
+**2.** More specifically, we note that hour and seasons show more notable level wise differences and less overlapping dispersion. For the holiday variable, the rented bike count median difference by level is notable but the level wise dispersion is highly overlapping, which suggests the holiday variable may be less significant in later analysis.
+
+**3.** We also note that when functioning_day is 'No', rented bike counts are always zero. That means when functioning day is 'No', we could learn little about the demand from the dataset. Thus we decided to only focus on the entries with functioning_day being 'Yes', which reduced the observationas from 8760 to 8465.
+
+```{r feature engineering, include=FALSE}
+#select the data with only functioning_day being 'Yes'
+
+rentb_used = rentb_used%>%filter(rentb_used$Functioning_day=='Yes')
+length(rentb_used[,1])
+```
+
+# Model Development 
+
+## Poisson regression
+
+Given the rented bike count for each hour is a count variable,  our initial hypothesis is that it would be appropriate to model with a Poisson regression.Based on the above EDA, we build the initial poisson model with the following variables: temperature, solar radiation, humidity, visibility, hour, season, holiday. To start, we include only linear terms for each of these explanatory variables.
+ 
+
+```{r poisson model 1 - build model, include=TRUE, echo=TRUE}
+mod1.poisson <- glm(Rented_bike_count ~ Temperature + Solar_radiation + Humidity + Visibility
+                     + Hour + Seasons + Holiday, family = poisson(link=log), 
+                    data = rentb_used)
+# summary(mod1.poisson)
+```
+
+```{r poisson model 1 - Anova}
+cat('\nModel1 Anova LR test results:\n')
+Anova(mod1.poisson)
+```
+
+```{r possion model 1-impact, include=TRUE, fig.dim=c(4.5,2.2)}
+beta_mod1 <-coef(mod1.poisson)
+
+std_chg<- c(Temperature=sd(rentb_used$Temperature),
+                    Solar_radiation=sd(rentb_used$Solar_radiation),
+                    Humidity=sd(rentb_used$Humidity),
+                    Visibility=sd(rentb_used$Visibility))
+
+impact_num <- data.frame(exp(std_chg*c(beta_mod1[2],beta_mod1[3],beta_mod1[4],beta_mod1[5])))
+colnames(impact_num) <- 'impact'
+
+impact_factor <-data.frame(exp(coef(mod1.poisson)[6:32]))
+colnames(impact_factor)<-'impact'
+
+impact_comb <-(rbind(impact_num,impact_factor))
+
+impact_comb_ord<-impact_comb%>%
+  arrange(desc(impact))
+
+impact_comb_ord$variable = rownames(impact_comb_ord)
+# impact_comb_ord
+
+ggplot(impact_comb_ord, aes(x = reorder(variable, -impact), y = impact)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Impact (exp(model_beta*c)) by Variable", x = 'Variable', y = "Impact Value") +
+  theme_minimal()+
+  theme(plot.title = element_text(size = 10),
+        axis.text = element_text(size = 6.5),
+        axis.title = element_text(size = 9))+
+  # coord_flip()
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+From the Model 1 summary and LR test results, we note that most of the variables that we selected are statistically significant with a high confidence level (99.9%), with both the Wald-test and LR chi-square test agreeing.
+
+In terms of practical significance, we examine the magnitude of each variable on rented bike count. More specifically, we examine the impact on rented bike count for one standard deviation change for each explanatory variable, holding everything else constant. We noted that evening hours and morning hours have the biggest impact on bike count, such as Hour18 increasing the bike demand by 1.03x (vs Hour24, the reference hour), and Hour8 increasing the bike demand by 89% (vs Hour24), all else equal. This makes sense, given those are rush hour times when people go to and get off work. Other than that, among the metric variables, temperature also has a sizable impact: every 12 degree increase in temperature is associated with a 41% increase in bike demand, all else equal. 
+
+
+## Model Comparison 
+
+In the second model, we add the variable Wind_speed to capture potential weather-related effects, as well as Snowfall and Rainfall, which are both weather factors that can influence the likelihood of people renting bikes. These variables were selected because logically speaking, they should have some impact on bike demand at a given hour due to their direct influence on comfort and safety when cycling.
+
+The third model introduces non-linear and interaction terms. From our previous exploratory analysis, we observed potential non-linear relationships between Temperature and Humidity with rented bike count. Therefore, we included their quadratic terms (I(Temperature^2) and I(Humidity^2)) to capture these effects. Additionally, we introduced an interaction term between Temperature and Humidity because these two factors can jointly influence the perceived comfort for outdoor activities. Additionally, the interaction between Holiday and Hour is included in the model to capture how the effect of the time of day on bike rentals changes based on whether the day is a holiday or not. Without this interaction term, the model assumes that the effect of Hour on bike rentals is the same on both holidays and non-holidays.
+
+```{r Model comparison, include=FALSE}
+# In model 2, we added back a few variables that appear to have high correlation with rented bike count, but were excluded due to either they are highly correlated with other selected variables, or they are not ranked top 3 in terms of correlation. 
+# The additionally included:  Humidity, Wind_speed, Snowfall, Rainfall
+
+# In model 3, we further added the interaction term: Hour:Functioning_day
+
+mod2.poisson <- glm(Rented_bike_count ~ Temperature + Solar_radiation + 
+                      Humidity + Visibility + Hour + Seasons + Holiday + 
+                      Wind_speed + Snowfall + Rainfall,
+                      family = poisson(link=log), 
+                    data = rentb_used)
+# summary(mod2.poisson)
+cat('\nModel2 Anova LR test results:\n')
+Anova(mod2.poisson, test = "LR")
+
+mod3.poisson <- glm(Rented_bike_count ~ Temperature + Solar_radiation + 
+                      Humidity + Visibility + Hour + Seasons + Holiday + 
+                      Wind_speed + Snowfall + Rainfall + I(Temperature^2) + I(Humidity^2) +
+                              Temperature:Humidity + Holiday:Hour,
+                    family = poisson(link=log),  
+                    data = rentb_used)
+# summary(mod3.poisson)
+cat('\nModel3 Anova LR test results:\n')
+Anova(mod3.poisson, test = "LR")
+```
+We conducted LR tests (Anova) for both Model2 and Model3, which show statistical significance for all parameters at the 99.9% confidence level. Due to limited page space, we do not show them one by one here. 
+
+```{r AIC BIC AICc check, include=FALSE}
+AIC_mod1 <- AIC(mod1.poisson)
+AIC_mod2 <-AIC(mod2.poisson)
+AIC_mod3 <-AIC(mod3.poisson)
+
+BIC_mod1 <- BIC(mod1.poisson)
+BIC_mod2 <- BIC(mod2.poisson)
+BIC_mod3 <- BIC(mod3.poisson)
+
+AICc <- function(model) {
+  k <- length(coef(model))
+  
+  n <- length(model$fitted.values)
+  
+  aic <- AIC(model)
+  
+  aicc <- aic + (2 * k * (k + 1)) / (n - k - 1)
+  
+  return(aicc)
+}
+AICc_mod1 <- AICc(mod1.poisson)
+AICc_mod2 <- AICc(mod2.poisson)
+AICc_mod3 <- AICc(mod3.poisson)
+
+# Print the results
+cat("Model 1 AIC:", AIC_mod1, "\nModel 1 AICc:", AICc_mod1, "\nModel 1 BIC:", BIC_mod1, "\n\n")
+cat("Model 2 AIC:", AIC_mod2, "\nModel 2 AICc:", AICc_mod2, "\nModel 2 BIC:", BIC_mod2, "\n\n")
+cat("Model 3 AIC:", AIC_mod3, "\nModel 3 AICc:", AICc_mod3, "\nModel 3 BIC:", BIC_mod3, "\n\n")
+```
+
+
+```{r put three poisson models together, results='asis'}
+r_pos <-AIC(mod1.poisson, mod2.poisson, mod3.poisson)$df
+n <- length(rentb_used[,1])
+AIC_adj_pos = 2*r_pos*(r_pos+1)/(n-r_pos-1)
+
+three_mods_tb_exp = stargazer(mod1.poisson, mod2.poisson, mod3.poisson,
+          type='latex', 
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          header = FALSE,
+          title = 'Rented Bike Count Analysis - Poisson Regresion',
+          column.sep.width = "1pt",
+          no.space=TRUE,
+          font.size='scriptsize',
+          single.row = TRUE,
+          omit.stat =c('rsq','ser','f', 'aic'),
+          add.lines=list(c('AIC', round(AIC(mod1.poisson, mod2.poisson, mod3.poisson)$AIC,2)),
+                         c('Corrected AIC',round(AIC(mod1.poisson, mod2.poisson, mod3.poisson)$AIC+AIC_adj_pos,2)),
+                         c('BIC', round(BIC(mod1.poisson, mod2.poisson, mod3.poisson)$BIC,2))),
+          intercept.top=TRUE, intercept.bottom=FALSE)
+```
+
+Next, we compare all three models (**Table 2**). The key observation are: 
+
+**1.** Comparing the three models' results, we note that all three models show significance for most of their parameter coefficients, with a few exceptions in the third model: 
+  **1.1** Select hours and the interaction terms for those 'hour' variables are not significant (e.g., Hour 11 and Hour16). However, the fact that the majority of the hours show meaningful significance supports the conclusion that 'hour' as a variable is significant. 
+  **1.2** The 'Holiday' dummy loses its significance after we include the holiday-hour interactions in Model 3. This suggests that the significance of the holiday dummy is mainly through its interaction effect with hours.  
+  
+
+**2.** We also considered three information criteria (AIC, AIC_corrected and BIC) to compare the three models. As a rule of thumb, the lower the information criteria, the better the model. Although we know that BIC tends to favor simpler models and AIC tends to favor more sophisticated models,  all three criteria decrease as we move from Model 1 to Model 3. Based on the AIC, AICc, and BIC values, Model 3 is the preferred model with the best trade-off between model complexity and goodness of fit.
+
+We further compare the three models using an LR test (anova) to see if adding sophistication as a whole results in a statistically significant improvement in the modeling.
+```{r anova test - model comparison}
+anova(mod1.poisson, mod2.poisson, mod3.poisson, test='Chisq')
+```
+We conducted anova tests to compare each model sequentially from Model 1 to Model 3. The results of these tests indicate that each increase in complexity, from Model 1 to Model 2, and from Model 2 to Model 3, adds a statistically significant improvement to the overall fit of the model. This statistical evidence, together with the comparison of the AIC and BIC values earlier, consistently ranks Model 3 as the best, further supporting our decision to use that as the preferred poisson model.
+
+
+## Model Assessment 
+
+To examine the model fit for Model 3, we constructed the standard residual versus fitted value test to examine any outliers or overdispersion issues.
+```{r fig.height=2.8, fig.width=4.5, fig.align='center', echo=FALSE}
+# plot(allEffects(mod3.poisson, default.level=50)),
+# IN: this all effect is more useful in EDA stage..
+# residualPlots(mod1.poisson, layout=c(2,2))
+# residualPlots(mod2.poisson, layout=c(2,2))
+# residualPlots(mod3.poisson, layout=c(2,2))
+
+# residualPlots(mod1.poisson, terms = ~1)
+# residualPlots(mod2.poisson, terms = ~1)
+std_residuals <- rstandard(mod3.poisson)
+par(mar = c(2, 4, 2, 2))  # Adjust the margins 
+plot(fitted(mod3.poisson), std_residuals, 
+     main = "Standardized Residuals vs Fitted Values - Poisson Model3", 
+     xlab = "Fitted Values", ylab = "Standardized Residuals",
+    cex.main=0.8,
+   cex.lab=0.7)
+abline(h = 0, col = "red")
+```
+```{r Overdispersion test}
+dispersiontest(mod3.poisson)
+```
+Observation/note: 
+<!-- 1. In model1 residual analysis we can see that residual dispersion increases as the linear predictor value increases. But overall the residuals are symmetrically scattering around zero. -->
+The residual plot for Model 3 reveals several issues. First, there is evidence of heteroscedasticity, as the spread of residuals varies with fitted values, indicating non-constant variance. This violates a key assumption of Poisson regression. Additionally, some significant outliers are visible, which suggests that certain observations may disproportionately influence the model's results. Further investigation shows that the skewness in rainfall is the main reason for outliers. Finally, besides outliers, the slight skew in the residuals suggests that the error distribution is not perfectly symmetrical. To improve model fit, we decided to drop rainfall from the model to improve outlier issue, and make other model adjustments such as employing a quasi-Poisson or Negative Binomial regression, to attempt to  address overdispersion.
+```{r Outliers}
+#std_residuals <- rstandard(mod3.poisson)
+
+# Identify large residuals > 2sd
+#outliers <- which(abs(std_residuals) > 3)
+#outliers
+#length(outliers)
+```
+
+```{r Model with negative binomial test, fig.align = 'center', fig.height=2.8, fig.width=4.5}
+# mod3.nb <- glm.nb(Rented_bike_count ~ Temperature + I(Temperature^2) + Solar_radiation + Humidity + I(Humidity^2) +
+#                               Wind_speed + Visibility + Hour + Seasons + Holiday +
+#                               Temperature:Humidity + Holiday:Hour + Solar_radiation:Wind_speed,
+#                               data = rentb_used)
+
+mod3.nb <- glm.nb(Rented_bike_count ~ Temperature + Solar_radiation +
+                      Humidity + Visibility + Hour + Seasons + Holiday +
+                      Wind_speed + Snowfall + I(Temperature^2) + I(Humidity^2) +
+                              Temperature:Humidity + Holiday:Hour,
+                              data = rentb_used)
+
+#summary(mod3.nb)
+
+# Standardized residuals vs fitted values
+std_residuals_nb <- rstandard(mod3.nb)
+par(mar = c(2, 4, 2, 2))
+plot(fitted(mod3.nb), std_residuals_nb, 
+    main = "Standardized Residuals vs Fitted Values - Negative Binomial", 
+   xlab = "Fitted Values", ylab = "Standardized Residuals", 
+   cex.main=0.8,
+   cex.lab=0.7)
+abline(h = 0, col = "red")
+
+```
+
+```{r use AIC, AICc, BIC to compare with poisson}
+AIC_mod_nb <- AIC(mod3.nb)
+BIC_mod_nb <- BIC(mod3.nb)
+AICc_mod_nb <- AICc(mod3.nb)
+
+# cat("Poisson Model 3 (mod3.poisson):\n")
+# cat("AIC:", AIC_mod3, "\nAICc:", AICc_mod3, "\nBIC:", BIC_mod3, "\n\n")
+# cat("Negative Binomial Model (mod.nb):\n")
+# cat("AIC:", AIC_mod_nb, "\nAICc:", AICc_mod_nb, "\nBIC:", BIC_mod_nb, "\n")
+
+IC_comp <- data.frame(Poisson_Model_3=c(AIC_mod3, AICc_mod3, BIC_mod3),
+           Negative_Binomial_Model=c(AIC_mod_nb, AICc_mod_nb, BIC_mod_nb))
+rownames(IC_comp) = c('AIC','AICc','BIC')
+IC_comp
+```
+The Negative Binomial model (mod.nb) leads to meaningfully lower values for AIC, AICc, and BIC compared to the Poisson model (mod3.poisson). This suggests that the Negative Binomial model is a better fit for the data, likely due to its ability to handle overdispersion, which was evident previously in the Poisson model.
+
+The standardized residual plot for the Negative Binomial model also shows a better distribution of residuals, which indicates that the overdispersion issue seen in the Poisson model is improved.
+
+## Alternative Specification 
+
+To offer a different perspective, we also attempt to fit the data with an alternative model family: OLS. We inherit all the parameter choices from Poisson regression Model 3 above, and refit the model with OLS instead. We then compare the two models side by side in terms of variable significance as well as overall fit. 
+```{r Alternative model, include=FALSE}
+# Use the same parameters but with OLS - need to discuss, should we decide on which model in model assessment stage, which will use validation data to choose model, then in alternative model stage just apply validation data to ols and compare with the poisson model?
+mod4.lm <- lm(Rented_bike_count ~ Temperature + Solar_radiation +
+                      Humidity + Visibility + Hour + Seasons + Holiday +
+                      Wind_speed + Snowfall + I(Temperature^2) + I(Humidity^2) +
+                              Temperature:Humidity + Holiday:Hour,
+                    data = rentb_used)
+# summary(mod4.lm)
+```
+
+```{r OLS vs Poisson - wald test aic bic, results='asis'}
+r <-AIC(mod3.nb, mod4.lm)$df
+n <- length(rentb_used[,1])
+AIC_adj = 2*r*(r+1)/(n-r-1)
+
+ols_vs_poss_mods_tb_exp = stargazer(mod3.nb, mod4.lm,
+          type='latex', 
+          star.cutoffs = c(0.05, 0.01, 0.001), 
+          header = FALSE,
+          title = 'Rented Bike Count Analysis - Poisson Model 3 vs OLS Regresion',
+          column.sep.width = "1pt",
+          no.space=TRUE,
+          font.size='scriptsize',
+          single.row = TRUE,
+          omit.stat =c('rsq','ser','f', 'aic','ll'),
+          add.lines=list(c('AIC', round(AIC(mod3.nb, mod4.lm)$AIC,2)),
+                         c('Corrected AIC',round(AIC(mod3.nb, mod4.lm)$AIC+AIC_adj,2)),
+                         c('BIC', round(BIC(mod3.nb, mod4.lm)$BIC,2))),
+          intercept.top=TRUE, intercept.bottom=FALSE)
+```
+
+The model summary (**Table 3**) shows that both the Negative Binomial and OLS models offer a very different interpretation in terms of parameter significance compared to the Poisson regression. For example, wind_speed, visibility, the hour dummies, and the holiday dummy show little significance in the OLS model, whereas the Negative Binomial suggests wind_speed is important but visibility and snowfall are not. We also note that both the Negative Binomial and OLS AIC and BIC are much lower than those results for the Poisson regression. The Negative Binomial model has the lowest information criteria overall.   
+
+In order to compare the fit between the two models, we constructed the fitted value versus residual comparison for the two models. 
+```{r OLSvsPoisson residual comparison, fig.align = 'center', fig.height=2.8, fig.width=4.5}
+fitted_values_poisson <- fitted(mod3.nb)  
+fitted_values_ols <- fitted(mod4.lm)
+
+data_compare <- data.frame(
+  Fitted_poisson = fitted_values_poisson,
+  Fitted_ols = fitted_values_ols
+)
+par(mar = c(2, 4, 2, 2))
+plot(data_compare$Fitted_poisson, data_compare$Fitted_ols,
+     xlab = "Fitted Values from Negative Binomial Model", 
+     ylab = "Fitted Values from OLS", 
+     main = "Fitted Values: Negative Binomial vs OLS",
+   cex.main=0.9,
+   cex.lab=0.7)
+abline(0, 1, col = "red", lty = 2)  # Add a reference line (y = x)
+
+```
+The comparison plot demonstrates that the Negative Binomial model provides higher and more accurate fitted values compared to the OLS model, particularly for higher counts. The OLS model tends to underpredict for larger values, as seen in the divergence from the red reference line at higher fitted values relative to Negative Binomial. In contrast, the OLS model produces some unrealistic negative fitted values and struggles to accommodate the count nature of the data. This leads to even greater deviations from the red reference line.
+
+The Negative Binomial model is better suited for predicting bike rental counts as it handles overdispersion in the data, which the previous Poisson model fails to capture effectively. This makes the Negative Binomial model a more appropriate choice when the variance is much greater than the mean, which is the case for bike rental counts. Thus, the Negative Binomial regression provides more reliable predictions, particularly for higher bike rental counts, as it better aligns with the distribution of the data.
+
+# Conclusion 
+
+In this analysis, we aimed to investigate the factors influencing bike rental demand using the SeoulBikeData dataset. Our primary hypothesis was that various weather conditions—such as temperature, humidity, and rainfall—along with time-related factors like the hour, seasons, and holidays, significantly impact bike rental counts. In the process we have modeled both OLS and Poisson regressions. The Poisson model revealed significant overdispersion, which led us to adopt the Negative Binomial regression model.
+
+Our key findings show that the Negative Binomial model is more appropriate for this dataset as it handles non-negative count data and accounts for the overdispersion observed in the Poisson model. The OLS model produces some negative fitted values and overpredicts for larger values, making it unreliable for this type of data. The Negative Binomial regression, particularly derived from our Model 3 Poisson, indicates that temperature, humidity, rainfall, and wind speed, along with interactions between time and holiday variables, are important factors in predicting bike rentals.
+
+The implications of these findings suggest that bike-sharing systems can optimize bike availability by considering these factors in real-time demand forecasts. While the Negative Binomial model improves upon the Poisson model, the residual plot still shows some large residuals and outliers, suggesting that further refinement may be necessary. However, the flexibility of the Negative Binomial model in addressing overdispersion makes it a better fit for this dataset compared to the OLS and Poisson models. Lastly, limited documentation on the sampling process may introduce biases or affect the representativeness of our findings in a way that we are not aware of. 
+

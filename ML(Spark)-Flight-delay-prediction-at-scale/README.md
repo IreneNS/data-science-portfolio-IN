@@ -14,7 +14,7 @@ This is initially a group project with more than one contributors. The overall r
 
 ## Key Takeaways and Results
 
-- The key challenges of this project lie in (1). the large data size (>5GB, 31mm rows), (2). imbalanced label, and (3). time series nature of the input and prediction problem. Therefore, parallel processing, data imbalance treatment, and the prevention of leakage from careful feature selection, feature engineering, and cross validation are critical to the project throughout. A lot of the traditional cookie-cutter ML processes are no longer applicable here. 
+- The key challenges of this project lie in (1). the large data size (>5GB, 31mm rows), (2). imbalanced label, and (3). time series nature of the input and prediction problem. Therefore, parallel processing, data imbalance treatment, and the prevention of leakage from careful feature selection, feature engineering, and cross validation are critical to the project. A lot of the traditional cookie-cutter ML processes are no longer applicable here. 
 
 - After careful data pre-processing, we added derived features from airports and flights based on lag, recency, centrality and time series, ensuring there is no data leakage in the process. As it turns out, the feature derived from lag information becomes the most important contributor. 
 

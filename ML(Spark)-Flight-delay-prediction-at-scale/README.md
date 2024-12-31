@@ -101,20 +101,20 @@ Optimizing models for the F2 score for the class more than 15-minute delay, our 
 
 ## Repository Structure
 
-- **data/**
+- **data**
     - The data is not hosted in Github.
 
-- **Code-and-analysis/**
+- **Code-and-analysis**
   - Contains modularized Jupyter notebooks used for data loading, data preprocessing, EDA, feature engineering, encoding and scaling, baseline model, and various experiments for ML modeling and evaluation. The folder includes the following Jupyter notebooks and related htmls (my part of the code):
     - **Data EDA**: IN- post-processing-EDA-w261_final_project.ipynb
     - **Feature engineering, Encoding and Scaling**: IN- feature-engineering-encoding-notebook-version.ipynb
     - **Baseline Model (logistic regression)**: IN-Logistic-Regression-w261_final_project.ipynb
     - **XG Boost**: IN-XGBoost -w261_final_project.ipynb
 
-- **Presentation/**
+- **Presentation**
   - A power-point based team presentation is attached to outline our key deliveries with visual pleasing problem description and model results
     
-- **Report/**
+- **Report**
   - A html based report with detailed project abstract, data processing, feature selection and engineering, methodologies, model results and team member responsibilities is included under this folder
  
 - **README.md**

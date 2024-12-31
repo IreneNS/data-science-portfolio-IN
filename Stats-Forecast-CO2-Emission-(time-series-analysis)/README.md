@@ -34,7 +34,7 @@ The focused combined dataset is a monthly time series of CO2 emission from 1958 
   - **ARIMA modeling**: with best educated guess based on EDA, and a few iterations of modeling, checking residual diagnostics to see if the residuals resemble white noises, we found the best fit SARIMA model with (0,1,0)(0,1,1)[12] as parameter. It is not only logically reasonable but also results in well-behaved white noise residuals.
   - **Main takeaways**: Regression model represents the hypothesis that CO2 emission is driven by deterministic force (such as human activities), while ARIMA model represents the hypothesis that CO2 emission is primarily driven by stochastic process. We noted that ARIMA model produces lower RMSE and MAE in-sample, suggesting a better in-sample fit. However, a two-year forecast ahead reveals that ARIMA model tends to produce much larger forecast uncertainty than regression.
 
-- **Analysis from 1987 to 2024**:
+- **Analysis from 1997 to 2024**:
   - **EDA**: a similar EDA analysis is done for the period post 1997 as it was done for the period pre 1997. Monthly data patterns are very similar to the analysis in the first half.
   - **Regression model assessment**: The predicted value from the picked regression model and realized CO2 levels track closely together which indicates that our regression model fits the data well even beyond 1997. Both the trend and the seasonal
  pattern (e.g., periodic fluctuations) are well-captured by the model.
@@ -62,10 +62,7 @@ The focused combined dataset is a monthly time series of CO2 emission from 1958 
   - the rmd file (using langauge R) supporting the analysis is saved here 
 
 - **report**
-  - a report generated from the rmd file with Latex format is saved here
-
-- **presentation**
-  - a short final project presentation is presented here
+  - a report (pdf) generated from the rmd file with Latex format is saved here
 
 - **README.md**
   - This file, detailing the project summary and repo structure.

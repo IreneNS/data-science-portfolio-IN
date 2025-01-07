@@ -10,5 +10,5 @@ The projects focus on analyzing a variety of academic and practical topics using
 
 I organized this repo by project. Under each project, I strive to present a consistent collection of content, including a overall project presentation, related code for the analysis, and relevant report associated with the project. 
 
-Note that many of these projects initially were group projects. Therefore I presented the overall results including the results from other collaborators, while only present my part of code in this repo for fairness purpose. 
+Note that many of these projects initially were group projects. Therefore, I presented the overall results including the results from other collaborators, while only present my part of code in this repo for fairness purpose. 
 
